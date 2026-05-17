@@ -1,0 +1,404 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <iomanip>
+#include <fstream>
+#include <stdexcept>
+#include <algorithm>
+#include <ctime>
+#include <limits>
+#include <map>
+using namespace std;
+
+struct ThongTinLichSu { 
+    string bs, loai, chuXe, ra; 
+    double phi; 
+};
+
+class BaiXeException : public runtime_error {
+public:
+    explicit BaiXeException(const string& msg) : runtime_error(msg) {}
+};
+
+class BaiXeDayException : public BaiXeException {
+public:
+    BaiXeDayException() : BaiXeException("Hien tai bai xe da day cho, khong the nhan them!") {}
+};
+
+template <typename T>
+class BoLuuTru {
+private:
+    vector<T> danhSach;
+public:
+    void them(const T& item) { danhSach.push_back(item); }
+    size_t size() const { return danhSach.size(); }
+    const T& operator[](size_t index) const { return danhSach[index]; }
+    bool empty() const { return danhSach.empty(); }
+};
+
+bool laBienSoHopLe(const string& s) {
+    for (size_t i = 0; i < s.length(); i++) {
+        if (!isalnum(s[i])) return false;  
+    }
+    return true;
+}
+
+bool laTenHopLe(const string& s) {
+    for (size_t i = 0; i < s.length(); i++) {
+        if (!isalpha(s[i]) && !isspace(s[i])) return false;
+    }
+    return true;
+}
+
+string nhapChuoi(const string& prompt, bool kieuTen) {
+    string input;
+    while (true) {
+        cout << prompt;
+        getline(cin, input);
+        size_t first = input.find_first_not_of(" \t");
+        if (first == string::npos) {
+            cout << "  [!] Thong bao: Khong duoc de trong thong tin!\n";
+            continue;
+        }
+        size_t last = input.find_last_not_of(" \t");
+        input = input.substr(first, last - first + 1);
+
+        if (kieuTen) {
+            if (input.length() > 50) {
+                cout << "  [!] Thong bao: Ten khong duoc qua 50 ky tu!\n";
+                continue;
+            }
+            if (!laTenHopLe(input)) {
+                cout << "  [!] Thong bao: Ten chi duoc chua chu cai, khong chua so hay ky tu dac biet!\n";
+                continue;
+            }
+        } else {
+            if (input.length() > 10) {
+                cout << "  [!] Thong bao: Toi da 10 ky tu. Vui long nhap lai!\n";
+                continue;
+            }
+            if (!laBienSoHopLe(input)) {
+                cout << "  [!] Thong bao: Bien so chi duoc chua chu va so, khong chua ky tu dac biet!\n";
+                continue;
+            }
+        }
+        return input;
+    }
+}
+
+int nhapSoNguyen(const string& prompt, int min_v, int max_v) {
+    string input;
+    while (true) {
+        cout << prompt;
+        getline(cin, input);
+        
+        size_t first = input.find_first_not_of(" \t");
+        if (first == string::npos) {
+            cout << "  [!] Thong bao: Vui long chon so trong pham vi [" << min_v << "-" << max_v << "]\n";
+            continue;
+        }
+        size_t last = input.find_last_not_of(" \t");
+        string trimmed = input.substr(first, last - first + 1);
+        
+        bool laSoThuanTuy = true;
+        for (size_t i = 0; i < trimmed.length(); i++) {
+            if (!isdigit(trimmed[i])) {
+                laSoThuanTuy = false;
+                break;
+            }
+        }
+        
+        if (!laSoThuanTuy || trimmed.length() > 9) {
+            cout << "  [!] Thong bao: Vui long chon so trong pham vi [" << min_v << "-" << max_v << "]\n";
+            continue;
+        }
+        
+        int val = 0;
+        for (size_t i = 0; i < trimmed.length(); i++) {
+            val = val * 10 + (trimmed[i] - '0');
+        }
+        
+        if (val >= min_v && val <= max_v) {
+            return val;
+        }
+        
+        cout << "  [!] Thong bao: Vui long chon so trong pham vi [" << min_v << "-" << max_v << "]\n";
+    }
+}
+
+string formatThoiGian(time_t t) {
+    struct tm* timePtr = localtime(&t);
+    char buf[32];
+    strftime(buf, sizeof(buf), "%d/%m/%Y %H:%M", timePtr);
+    return string(buf);
+}
+
+bool laQuaNgay(time_t vao, time_t ra) {
+    struct tm* tmVao = localtime(&vao);
+    int d1 = tmVao->tm_mday, m1 = tmVao->tm_mon, y1 = tmVao->tm_year;
+    struct tm* tmRa = localtime(&ra);
+    return (tmRa->tm_mday != d1 || tmRa->tm_mon != m1 || tmRa->tm_year != y1);
+}
+
+class PhuongTien {
+protected:
+    string bienSo, loaiXe, chuXe;
+    time_t timestampVao;
+public:
+    virtual ~PhuongTien() {}
+    
+    virtual void nhap() {
+        bienSo = nhapChuoi("  + Nhap bien so xe (Viet lien): ", false);
+        for(size_t i = 0; i < bienSo.length(); i++) bienSo[i] = toupper(bienSo[i]);
+        chuXe = nhapChuoi("  + Nhap ho ten chu xe: ", true);
+        timestampVao = time(0);
+    }
+    
+    virtual void xuat(int stt) const {
+        cout << left << setw(6) << stt << setw(15) << bienSo << setw(18) << loaiXe 
+             << setw(25) << formatThoiGian(timestampVao) << chuXe << endl;
+    }
+    virtual double tinhTien(time_t ra) const = 0;
+    string getBienSo() const { return bienSo; }
+    string getLoai() const { return loaiXe; }
+    string getChuXe() const { return chuXe; }
+    time_t getVao() const { return timestampVao; }
+};
+
+struct BoTimKiemBienSo {
+    string bsCanTim;
+    BoTimKiemBienSo(const string& target) : bsCanTim(target) {}
+    bool operator()(const PhuongTien* x) const {
+        return x->getBienSo() == bsCanTim;
+    }
+};
+
+class XeSo : public PhuongTien {
+public:
+    XeSo() { loaiXe = "Xe May (So)"; }
+    double tinhTien(time_t ra) const { return laQuaNgay(timestampVao, ra) ? 6000 : 3000; }
+};
+
+class XeGa : public PhuongTien {
+public:
+    XeGa() { loaiXe = "Xe May (Ga)"; }
+    double tinhTien(time_t ra) const { return laQuaNgay(timestampVao, ra) ? 8000 : 4000; }
+};
+
+class OTo : public PhuongTien {
+public:
+    OTo() { loaiXe = "Xe O To"; }
+    double tinhTien(time_t ra) const { return laQuaNgay(timestampVao, ra) ? 40000 : 20000; }
+};
+
+class XeTai : public PhuongTien {
+public:
+    XeTai() { loaiXe = "Xe Tai"; }
+    double tinhTien(time_t ra) const { return laQuaNgay(timestampVao, ra) ? 90000 : 45000; }
+};
+
+class XeDap : public PhuongTien {
+public:
+    XeDap() { loaiXe = "Xe Dap"; }
+    double tinhTien(time_t ra) const { return laQuaNgay(timestampVao, ra) ? 4000 : 2000; }
+};
+
+class MoHinhBaiXe {
+private:
+    vector<PhuongTien*> danhSach;
+    BoLuuTru<ThongTinLichSu> dsLichSu; 
+    const int SUC_CHUA;
+    double doanhThu;
+    int tongXeDaVao;
+
+public:
+    MoHinhBaiXe(int sc) : SUC_CHUA(sc), doanhThu(0), tongXeDaVao(0) {}
+    ~MoHinhBaiXe() { for (size_t i = 0; i < danhSach.size(); i++) delete danhSach[i]; }
+
+    void xeVaoBai() {
+        if (danhSach.size() >= SUC_CHUA) throw BaiXeDayException();
+        
+        cout << "\n========= CHON LOAI PHUONG TIEN VAO =========\n";
+        cout << "1. Xe May So (3.000d)  |  2. Xe May Ga (4.000d)\n";
+        cout << "3. Xe O To  (20.000d)  |  4. Xe Tai   (45.000d)\n";
+        cout << "5. Xe Dap   (2.000d)\n";
+        cout << "---------------------------------------------\n";
+        int chon = nhapSoNguyen(" -> Moi ban chon loai xe: ", 1, 5);
+
+        PhuongTien* x = NULL;
+        switch(chon) {
+            case 1: x = new XeSo(); break;
+            case 2: x = new XeGa(); break;
+            case 3: x = new OTo(); break;
+            case 4: x = new XeTai(); break;
+            default: x = new XeDap(); break;
+        }
+
+        x->nhap();
+
+        for(size_t i = 0; i < danhSach.size(); i++) {
+            if(danhSach[i]->getBienSo() == x->getBienSo()) {
+                cout << "  [!] Loi: Bien so '" << x->getBienSo() << "' hien DANG CO trong bai xe!\n"; 
+                delete x; 
+                return;   
+            }
+        }
+
+        danhSach.push_back(x);
+        tongXeDaVao++;
+        cout << "=> THONG BAO: Phuong tien da vao bai thanh cong!\n";
+    }
+
+    void xeRaBai() {
+        if (danhSach.empty()) { cout << "  [!] Thong bao: Bai xe hien dang trong!\n"; return; }
+        
+        string bs = nhapChuoi(" -> Nhap bien so xe can thanh toan: ", false);
+        for(size_t i=0; i<bs.length(); i++) bs[i] = toupper(bs[i]);
+        
+        string ten = nhapChuoi(" -> Nhap ho ten chu xe de doi chieu: ", true);
+
+        time_t gioRa = time(0);
+        for (size_t i = 0; i < danhSach.size(); i++) {
+            if (danhSach[i]->getBienSo() == bs) {
+                if (danhSach[i]->getChuXe() != ten) {
+                    cout << "  [!] Chon sai thong tin: Ho ten chu xe khong trung khop voi bien so '" << bs << "'!\n";
+                    return; 
+                }
+
+                double phi = danhSach[i]->tinhTien(gioRa);
+                doanhThu += phi;
+                
+                ThongTinLichSu ls = {bs, danhSach[i]->getLoai(), danhSach[i]->getChuXe(), formatThoiGian(gioRa), phi};
+                dsLichSu.them(ls); 
+
+                cout << "\n********** HOA DON THANH TOAN **********\n";
+                cout << " Bien so xe: " << bs << endl;
+                cout << " Chu xe:     " << danhSach[i]->getChuXe() << endl;
+                cout << " Loai xe:    " << danhSach[i]->getLoai() << endl;
+                cout << " Thoi gian:  " << (laQuaNgay(danhSach[i]->getVao(), gioRa) ? "Gui qua dem (Gia x2)" : "Gui trong ngay") << endl;
+                cout << " THANH TIEN: " << (long long)phi << " VND" << endl;
+                cout << "****************************************\n";
+                
+                delete danhSach[i];
+                danhSach.erase(danhSach.begin() + i);
+                return;
+            }
+        }
+        cout << "  [!] Khong tim thay bien so xe nay trong bai!\n";
+    }
+
+    void hienThiTrangThai() const {
+        cout << "\n================ DASHBOARD QUAN LY (" << danhSach.size() << "/" << SUC_CHUA << ") ================\n";
+        if (danhSach.empty()) cout << "             (Hien tai bai xe dang trong)\n";
+        else {
+            cout << left << setw(6) << "STT" << setw(15) << "Bien So" << setw(18) << "Loai Xe" 
+                 << setw(25) << "Thoi Gian Vao" << "Chu Phuong Tien" << endl;
+            cout << "----------------------------------------------------------------------\n";
+            for (size_t i = 0; i < danhSach.size(); i++) {
+                danhSach[i]->xuat(i + 1);
+            }
+        }
+        cout << "======================================================================\n";
+    }
+
+    void timKiemXe() const {
+        string bs = nhapChuoi(" -> Nhap bien so xe can tim: ", false);
+        for(size_t i=0; i<bs.length(); i++) bs[i] = toupper(bs[i]);
+        
+        vector<PhuongTien*>::const_iterator it = find_if(danhSach.begin(), danhSach.end(), BoTimKiemBienSo(bs));
+
+        if (it != danhSach.end()) {
+            cout << "\n[ KET QUA TIM KIEM ]:\n";
+            (*it)->xuat(1);
+        } else {
+            cout << " Khong tim thay xe co bien so nay trong bai!\n";
+        }
+    }
+
+    void hienThiLichSu() const {
+        cout << "\n============= LICH SU CAC XE DA RA BAI =============\n";
+        if (dsLichSu.empty()) cout << " (Chua co lich su giao dich)\n";
+        for (size_t i = 0; i < dsLichSu.size(); i++)
+            cout << i+1 << ". " << dsLichSu[i].bs << " | " << dsLichSu[i].loai 
+                 << " | Tien: " << (long long)dsLichSu[i].phi << " VND | Ra: " << dsLichSu[i].ra << endl;
+    }
+
+    void thongKeDoanhThu() const {
+        map<string, int> m;
+        for (size_t i = 0; i < danhSach.size(); i++) m[danhSach[i]->getLoai()]++;
+        cout << "\n============= THONG KE HOAT DONG =============\n";
+        cout << " 1. So luong xe dang gui theo loai:\n";
+        for (map<string, int>::const_iterator it = m.begin(); it != m.end(); ++it)
+            cout << "    + " << it->first << ": " << it->second << " xe\n";
+        cout << " 2. Tong so luot xe da vao bai: " << tongXeDaVao << " luot xe\n";
+        cout << " 3. TONG DOANH THU DAT DUOC:   " << (long long)doanhThu << " VND\n";
+        cout << "==============================================\n";
+    }
+
+    void xuatBaoCaoFile() const {
+        ofstream f("BaoCao_Parking.csv"); 
+        
+        f << "\xEF\xBB\xBF";
+        
+        f << "sep=,\n"; 
+    
+        f << "BÁO CÁO THÔNG TIN TONG QUAN BAI XE\n";
+        f << "TOng doanh thu (VND),Tong so luot xe da vao,So xe hien tai dang trong bai\n";
+        f << (long long)doanhThu << "," << tongXeDaVao << "," << (int)danhSach.size() << "\n\n";
+        
+        f << "DANH SÁCH CHI TIET PHUONG TIEN ÐA XUAT BAI\n";
+        f << "STT,Bien so xe,Chu phuong tien,Loai phuong tien,So tien thanh toán,Thoi gian ra bai\n"; 
+        
+        for (size_t i = 0; i < dsLichSu.size(); i++) {
+            f << (i + 1) << ","
+              << "\"" << dsLichSu[i].bs << "\","
+              << "\"" << dsLichSu[i].chuXe << "\","
+              << "\"" << dsLichSu[i].loai << "\","
+              << (long long)dsLichSu[i].phi << " VND,"
+
+              << "\"" << dsLichSu[i].ra << "\"\n";
+        }
+        
+        f.close();
+        cout << "=> Da xuat bao cao vao file 'BaoCao_Parking.csv' thanh cong!\n";
+    }
+};
+
+int main() {
+    MoHinhBaiXe ql(50);
+    int chon = -1;
+    while (true) {
+        try {
+            ql.hienThiTrangThai();
+            cout << "\n************* MENU QUAN LY BAI XE *************\n";
+            cout << "* [1]. Cho phuong tien vao bai               *\n";
+            cout << "* [2]. Thanh toan cho phuong tien ra         *\n";
+            cout << "* [3]. Tim kiem phuong tien theo bien so     *\n";
+            cout << "* [4]. Xem lich su giao dich                 *\n";
+            cout << "* [5]. Thong ke doanh thu chi tiet           *\n";
+            cout << "* [6]. Xuat bao cao ra file (.csv)           *\n"; 
+            cout << "* [0]. Thoat chuong trinh                    *\n";
+            cout << "***********************************************\n";
+            
+            chon = nhapSoNguyen(" -> Moi ban nhap lua chon: ", 0, 6);
+            if (chon == 0) break;
+
+            switch (chon) {
+                case 1: ql.xeVaoBai(); break;
+                case 2: ql.xeRaBai(); break;
+                case 3: ql.timKiemXe(); break;
+                case 4: ql.hienThiLichSu(); break;
+                case 5: ql.thongKeDoanhThu(); break;
+                case 6: ql.xuatBaoCaoFile(); break;
+            }
+        } catch (const exception& e) { cout << "\n[LOI HE THONG]: " << e.what() << endl; }
+        
+        cout << "\nNhan Enter de tiep tuc..."; cin.get();
+        #ifdef _WIN32
+            system("cls");
+        #else
+            system("clear");
+        #endif
+    }
+    return 0;
+}
